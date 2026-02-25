@@ -107,4 +107,4 @@ def handler(event):
         "storage_path": storage_path,
     }
 
-runpod.start({"handler": handler})
+runpod.serverless.start({"handler": handler})
