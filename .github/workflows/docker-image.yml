@@ -20,4 +20,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: diegocorraliza-svg/lora-trainerdc:v1
+          tags: diegocorraliza/lora-trainer:v4
