@@ -1,5 +1,5 @@
 import runpod
-import subprocess, os, requests, zipfile, shutil
+import subprocess, os, requests, zipfile, shutil, re
 
 SUPABASE_URL = "https://dksemexxbmgmtdfbidnk.supabase.co"
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -7,7 +7,6 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 def upload_to_supabase(local_path, storage_path):
     with open(local_path, "rb") as f:
         data = f.read()
-    # ✅ Bucket correcto: "loras" (no "lora-models")
     url = f"{SUPABASE_URL}/storage/v1/object/loras/{storage_path}"
     headers = {
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -28,12 +27,10 @@ def handler(event):
     lora_name    = inp.get("lora_name", f"{trigger}_lora")
     project_id   = inp.get("project_id", "unknown")
 
-    # ✅ Limpiar directorios de jobs anteriores (FlashBoot)
     for d in ["/tmp/training", "/tmp/output"]:
         if os.path.exists(d):
             shutil.rmtree(d)
 
-    # Descargar y extraer dataset
     zip_path = "/tmp/dataset.zip"
     r = requests.get(dataset_url)
     r.raise_for_status()
@@ -45,7 +42,6 @@ def handler(event):
     with zipfile.ZipFile(zip_path) as z:
         z.extractall(extract_dir)
 
-    # Estructura Kohya: 1_triggerword
     kohya_dir = f"/tmp/training/dataset/1_{trigger}"
     os.makedirs(kohya_dir, exist_ok=True)
     for root, _, files in os.walk(extract_dir):
@@ -55,7 +51,6 @@ def handler(event):
             if fname.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
                 shutil.move(os.path.join(root, fname), os.path.join(kohya_dir, fname))
 
-    # Entrenar
     output_dir = "/tmp/output"
     os.makedirs(output_dir, exist_ok=True)
     cmd = [
@@ -81,20 +76,30 @@ def handler(event):
         "--xformers",
         "--save_model_as=safetensors",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        return {"error": result.stderr[-2000:]}
 
-    # Verificar output
+    # Stream logs + parse progress
+    logs = []
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in proc.stdout:
+        logs.append(line.rstrip())
+        # Kohya prints "steps:  X/Y" — parse to report progress
+        match = re.search(r'(\d+)/(\d+)', line)
+        if match:
+            current, total = int(match.group(1)), int(match.group(2))
+            pct = min(99, int(current / total * 100))
+            runpod.serverless.progress_update(event, {"percent": pct, "step": current, "total": total})
+
+    proc.wait()
+    if proc.returncode != 0:
+        return {"error": "\n".join(logs[-50:])}
+
     safetensors = os.path.join(output_dir, f"{lora_name}.safetensors")
     if not os.path.exists(safetensors):
-        return {"error": "Output file not found"}
+        return {"error": f"Output not found. Logs:\n" + "\n".join(logs[-30:])}
 
-    # Subir a storage
     storage_path = f"{project_id}/{lora_name}.safetensors"
     upload_to_supabase(safetensors, storage_path)
 
-    # ✅ Output compatible con runpod-status edge function
     return {
         "status": "completed",
         "lora_name": lora_name,
