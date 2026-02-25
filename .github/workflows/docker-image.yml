@@ -21,3 +21,4 @@ jobs:
           context: .
           push: true
           tags: diegocorraliza/lora-trainer:v4
+                diegocorraliza/lora-trainer:v4-${{ github.run_number }}
