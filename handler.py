@@ -7,14 +7,14 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 def upload_to_supabase(local_path, storage_path):
     with open(local_path, "rb") as f:
         data = f.read()
-    url = f"{SUPABASE_URL}/storage/v1/object/lora-models/{storage_path}"
+    # ✅ Bucket correcto: "loras" (no "lora-models")
+    url = f"{SUPABASE_URL}/storage/v1/object/loras/{storage_path}"
     headers = {
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/octet-stream",
     }
     r = requests.post(url, headers=headers, data=data)
     r.raise_for_status()
-    return f"{SUPABASE_URL}/storage/v1/object/public/lora-models/{storage_path}"
 
 def handler(event):
     inp = event["input"]
@@ -28,21 +28,34 @@ def handler(event):
     lora_name    = inp.get("lora_name", f"{trigger}_lora")
     project_id   = inp.get("project_id", "unknown")
 
+    # ✅ Limpiar directorios de jobs anteriores (FlashBoot)
+    for d in ["/tmp/training", "/tmp/output"]:
+        if os.path.exists(d):
+            shutil.rmtree(d)
+
+    # Descargar y extraer dataset
     zip_path = "/tmp/dataset.zip"
-    r = requests.get(dataset_url); r.raise_for_status()
-    with open(zip_path, "wb") as f: f.write(r.content)
+    r = requests.get(dataset_url)
+    r.raise_for_status()
+    with open(zip_path, "wb") as f:
+        f.write(r.content)
+
     extract_dir = "/tmp/training/dataset"
     os.makedirs(extract_dir, exist_ok=True)
-    with zipfile.ZipFile(zip_path) as z: z.extractall(extract_dir)
+    with zipfile.ZipFile(zip_path) as z:
+        z.extractall(extract_dir)
 
+    # Estructura Kohya: 1_triggerword
     kohya_dir = f"/tmp/training/dataset/1_{trigger}"
     os.makedirs(kohya_dir, exist_ok=True)
     for root, _, files in os.walk(extract_dir):
-        if root == kohya_dir: continue
+        if root == kohya_dir:
+            continue
         for fname in files:
-            if fname.lower().endswith((".png",".jpg",".jpeg",".webp")):
+            if fname.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
                 shutil.move(os.path.join(root, fname), os.path.join(kohya_dir, fname))
 
+    # Entrenar
     output_dir = "/tmp/output"
     os.makedirs(output_dir, exist_ok=True)
     cmd = [
@@ -53,7 +66,8 @@ def handler(event):
         f"--output_dir={output_dir}",
         f"--output_name={lora_name}",
         "--network_module=networks.lora",
-        f"--network_dim={rank}", f"--network_alpha={alpha}",
+        f"--network_dim={rank}",
+        f"--network_alpha={alpha}",
         f"--max_train_steps={steps}",
         f"--learning_rate={lr}",
         f"--train_batch_size={batch}",
@@ -71,18 +85,21 @@ def handler(event):
     if result.returncode != 0:
         return {"error": result.stderr[-2000:]}
 
+    # Verificar output
     safetensors = os.path.join(output_dir, f"{lora_name}.safetensors")
     if not os.path.exists(safetensors):
         return {"error": "Output file not found"}
 
+    # Subir a storage
     storage_path = f"{project_id}/{lora_name}.safetensors"
-    public_url = upload_to_supabase(safetensors, storage_path)
+    upload_to_supabase(safetensors, storage_path)
 
+    # ✅ Output compatible con runpod-status edge function
     return {
         "status": "completed",
         "lora_name": lora_name,
-        "safetensors_url": public_url,
-        "storage_path": storage_path
+        "safetensors_storage_path": storage_path,
+        "storage_path": storage_path,
     }
 
 runpod.start({"handler": handler})
