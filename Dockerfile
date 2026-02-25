@@ -22,15 +22,18 @@ RUN pip install --no-cache-dir \
     toml==0.10.2 voluptuous==0.14.1 huggingface-hub==0.20.3 \
     requests==2.31.0 runpod>=1.7.0 brotli aiohttp
 
+# ✅ Kohya con tag estable que incluye sdxl_train_network.py
 RUN git clone https://github.com/kohya-ss/sd-scripts.git /kohya
 WORKDIR /kohya
-RUN git checkout sd3 || git checkout main
-RUN pip install --no-cache-dir -e . --no-deps 2>/dev/null || true
+RUN git checkout v22.6.2 || git checkout main
+RUN pip install --no-cache-dir -e .
 
+# Descargar modelo base SDXL
 RUN mkdir -p /models/sdxl
 RUN aria2c --console-log-level=error -x 16 -s 16 \
     "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors" \
     -d /models/sdxl -o sd_xl_base_1.0.safetensors
 
+# Handler compatible con edge functions
 COPY handler.py /handler.py
 CMD ["python", "/handler.py"]
