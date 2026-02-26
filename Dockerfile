@@ -44,7 +44,8 @@ RUN pip install --no-cache-dir \
     "runpod==1.7.7" \
     "brotli" \
     "aiohttp" \
-    "requests"
+    "requests" \
+    "bitsandbytes"
 
 RUN mkdir -p /models/sdxl
 RUN wget -q --show-progress \
