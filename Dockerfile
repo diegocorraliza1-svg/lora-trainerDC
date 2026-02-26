@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir "numpy==1.26.4"
 RUN pip install --no-cache-dir "xformers==0.0.23.post1"
 
 # ---- 3. Kohya sd-scripts v22.6.2 (desde source) ----
-RUN git clone --branch 0.22.6.2 --depth 1 https://github.com/kohya-ss/sd-scripts.git /app/kohya
+RUN git clone --branch v22.6.2 --depth 1 https://github.com/bmaltais/kohya_ss.git /app/kohya
 WORKDIR /app/kohya
 RUN pip install --no-cache-dir -e .
 
