@@ -53,10 +53,15 @@ def handler(event):
 
     output_dir = "/tmp/output"
     os.makedirs(output_dir, exist_ok=True)
+
+    train_script = "/app/kohya/sd_scripts/sdxl_train_network.py"
+    if not os.path.exists(train_script):
+        train_script = "/app/kohya/sdxl_train_network.py"
+
     cmd = [
         "accelerate", "launch", "--num_cpu_threads_per_process=1",
-        "/kohya/sdxl_train_network.py",
-        f"--pretrained_model_name_or_path=/models/sdxl/sd_xl_base_1.0.safetensors",
+        train_script,
+        "--pretrained_model_name_or_path=/models/sdxl/sd_xl_base_1.0.safetensors",
         f"--train_data_dir=/tmp/training/dataset",
         f"--output_dir={output_dir}",
         f"--output_name={lora_name}",
@@ -77,25 +82,23 @@ def handler(event):
         "--save_model_as=safetensors",
     ]
 
-    # Stream logs + parse progress
     logs = []
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in proc.stdout:
         logs.append(line.rstrip())
-        # Kohya prints "steps:  X/Y" — parse to report progress
         match = re.search(r'(\d+)/(\d+)', line)
         if match:
             current, total = int(match.group(1)), int(match.group(2))
             pct = min(99, int(current / total * 100))
             runpod.serverless.progress_update(event, {"percent": pct, "step": current, "total": total})
-
     proc.wait()
+
     if proc.returncode != 0:
         return {"error": "\n".join(logs[-50:])}
 
     safetensors = os.path.join(output_dir, f"{lora_name}.safetensors")
     if not os.path.exists(safetensors):
-        return {"error": f"Output not found. Logs:\n" + "\n".join(logs[-30:])}
+        return {"error": "Output not found. Logs:\n" + "\n".join(logs[-30:])}
 
     storage_path = f"{project_id}/{lora_name}.safetensors"
     upload_to_supabase(safetensors, storage_path)
@@ -103,7 +106,6 @@ def handler(event):
     return {
         "status": "completed",
         "lora_name": lora_name,
-        "safetensors_storage_path": storage_path,
         "storage_path": storage_path,
     }
 
