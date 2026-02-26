@@ -1,21 +1,24 @@
 import runpod
 import subprocess, os, requests, zipfile, shutil, re
 
-SUPABASE_URL = "https://dksemexxbmgmtdfbidnk.supabase.co"
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://dksemexxbmgmtdfbidnk.supabase.co")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
-def upload_to_supabase(file_path, storage_path):
-    url = f"{SUPABASE_URL}/storage/v1/object/loras/{storage_path}"
+def upload_to_supabase(local_path: str, storage_path: str, bucket: str = "loras"):
+    url = f"{SUPABASE_URL}/storage/v1/object/{bucket}/{storage_path}"
+    with open(local_path, "rb") as f:
+        data = f.read()
     headers = {
         "apikey": SUPABASE_SERVICE_ROLE_KEY,
         "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
         "Content-Type": "application/octet-stream",
         "x-upsert": "true",
     }
-    with open(file_path, 'rb') as f:
-        r = requests.post(url, headers=headers, data=f)
-    r.raise_for_status()
-    return r
+    r = requests.post(url, headers=headers, data=data)
+    if not r.ok:
+        print(f"[upload] FAILED {r.status_code}: {r.text}")
+        r.raise_for_status()
+    print(f"[upload] OK → {storage_path}")
 
 def handler(event):
     inp = event["input"]
