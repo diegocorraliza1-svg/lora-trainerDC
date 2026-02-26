@@ -18,8 +18,6 @@ RUN pip install --no-cache-dir \
     torch==2.1.2+cu121 torchvision==0.16.2+cu121 \
     --index-url https://download.pytorch.org/whl/cu121
 
-RUN pip install --no-cache-dir "xformers==0.0.23.post1"
-
 RUN git clone --branch v22.6.2 --depth 1 \
     https://github.com/bmaltais/kohya_ss.git /app/kohya
 WORKDIR /app/kohya
@@ -66,7 +64,6 @@ COPY handler.py /app/handler.py
 RUN python -c "\
 import numpy; print(f'numpy {numpy.__version__}'); \
 import torch; print(f'torch {torch.__version__}'); \
-import xformers; print(f'xformers {xformers.__version__}'); \
 import diffusers; print(f'diffusers {diffusers.__version__}'); \
 import runpod; print(f'runpod {runpod.__version__}'); \
 print('ALL IMPORTS OK')"
