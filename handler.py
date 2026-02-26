@@ -79,7 +79,7 @@ def handler(event):
         "--lr_scheduler=cosine",
         "--cache_latents",
         "--no_half_vae",
-        "--xformers",
+        "--sdpa",
         "--save_model_as=safetensors",
     ]
 
