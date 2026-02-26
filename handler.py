@@ -78,6 +78,7 @@ def handler(event):
         "--optimizer_type=AdamW8bit",
         "--lr_scheduler=cosine",
         "--cache_latents",
+        "--no_half_vae",
         "--xformers",
         "--save_model_as=safetensors",
     ]
