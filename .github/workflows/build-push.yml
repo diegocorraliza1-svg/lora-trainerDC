@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 env:
-  IMAGE: diegocorraliza/lora-trainer
+  IMAGE: diegocorraliza/lora-trainerDC
 
 jobs:
   build:
