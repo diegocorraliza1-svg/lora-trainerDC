@@ -15,6 +15,9 @@ def upload_to_supabase(local_path: str, storage_path: str, bucket: str = "loras"
         "x-upsert": "true",
     }
     r = requests.post(url, headers=headers, data=data)
+    if r.status_code == 400:
+        print(f"[upload] POST failed with 400, trying PUT: {r.text}")
+        r = requests.put(url, headers=headers, data=data)
     if not r.ok:
         print(f"[upload] FAILED {r.status_code}: {r.text}")
         r.raise_for_status()
