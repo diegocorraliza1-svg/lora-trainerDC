@@ -1,9 +1,12 @@
-name: Build & Push Inference Image
+name: Build & Push Trainer Image
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
+env:
+  IMAGE_NAME: ghcr.io/diegocorraliza1-svg/lora-trainerdc
 
 jobs:
   build-push:
