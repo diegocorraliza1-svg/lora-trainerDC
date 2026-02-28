@@ -1,16 +1,19 @@
-# .github/workflows/build-push.yml
-name: Build & Push LoRA Trainer
+name: Build & Push Inference Image
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
-  IMAGE: diegocorraliza/lora-trainerDC
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/lora-inferencedc
 
 jobs:
-  build:
+  build-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -18,15 +21,16 @@ jobs:
 
       - uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:v4-${{ github.run_number }}
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:v1-${{ github.run_number }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
