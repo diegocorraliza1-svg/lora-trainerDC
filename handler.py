@@ -9,16 +9,13 @@ def upload_to_supabase(local_path: str, storage_path: str, bucket: str = "loras"
     url = f"{SUPABASE_URL}/storage/v1/object/{bucket}/{storage_path}"
     with open(local_path, "rb") as f:
         data = f.read()
-
     headers = {
         "apikey": SUPABASE_SERVICE_ROLE_KEY,
         "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
         "Content-Type": "application/octet-stream",
         "x-upsert": "true",
     }
-
     print(f"[upload] File size: {len(data) / 1024 / 1024:.1f} MB")
-
     for attempt in range(1, max_retries + 1):
         try:
             r = requests.post(url, headers=headers, data=data, timeout=300)
@@ -28,12 +25,10 @@ def upload_to_supabase(local_path: str, storage_path: str, bucket: str = "loras"
             print(f"[upload] Attempt {attempt}/{max_retries} failed {r.status_code}: {r.text}")
         except requests.exceptions.RequestException as e:
             print(f"[upload] Attempt {attempt}/{max_retries} network error: {e}")
-
         if attempt < max_retries:
             wait = 2 ** attempt
             print(f"[upload] Retrying in {wait}s...")
             time.sleep(wait)
-
     raise RuntimeError(f"Failed to upload {storage_path} after {max_retries} attempts")
 
 
@@ -48,6 +43,7 @@ def handler(event):
     alpha       = inp.get("alpha", 16)
     lora_name   = inp.get("lora_name", f"{trigger}_lora")
     project_id  = inp.get("project_id", "unknown")
+    grad_ckpt   = inp.get("gradient_checkpointing", True)
 
     # Clean previous runs
     for d in ["/tmp/training", "/tmp/output"]:
@@ -85,7 +81,6 @@ def handler(event):
     # Find training script
     output_dir = "/tmp/output"
     os.makedirs(output_dir, exist_ok=True)
-
     train_script = "/app/kohya/sd_scripts/sdxl_train_network.py"
     if not os.path.exists(train_script):
         train_script = "/app/kohya/sdxl_train_network.py"
@@ -116,6 +111,9 @@ def handler(event):
         "--save_model_as=safetensors",
     ]
 
+    if grad_ckpt:
+        cmd.append("--gradient_checkpointing")
+
     logs = []
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in proc.stdout:
@@ -125,7 +123,6 @@ def handler(event):
             current, total = int(match.group(1)), int(match.group(2))
             pct = min(99, int(current / total * 100))
             runpod.serverless.progress_update(event, {"percent": pct, "step": current, "total": total})
-
     proc.wait()
 
     if proc.returncode != 0:
